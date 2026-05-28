@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Árbol AVL — Simulador</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f5f4ef; --bg3: #eeecea;
+    --text: #1a1a18; --text2: #73726c; --text3: #9c9a92;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --info-bg: #e6f1fb; --info-text: #185FA5; --info-border: #B5D4F4;
+    --radius: 8px; --radius-lg: 12px;
+    --font: system-ui, -apple-system, sans-serif; --mono: ui-monospace, monospace;
+  }
+
+  body { font-family: var(--font); background: var(--bg3); color: var(--text); min-height: 100vh; padding: 1.5rem; }
+  h1 { font-size: 18px; font-weight: 500; margin-bottom: 1.25rem; color: var(--text); }
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  button {
+    font-family: var(--font); font-size: 13px; color: #fff;
+    background: #A78BFA; border: none;
+    border-radius: var(--radius); padding: 6px 12px; cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-weight: 500;
+  }
+  button:hover { filter: brightness(1.08); }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.4; cursor: default; filter: none; }
+  input[type=number] {
+    font-family: var(--font); font-size: 13px; color: var(--text);
+    background: var(--bg); border: 0.5px solid var(--border2);
+    border-radius: var(--radius); padding: 6px 10px; outline: none;
+    -moz-appearance: textfield;
+  }
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  input[type=number]:focus { border-color: var(--info-text); box-shadow: 0 0 0 2px rgba(24,95,165,0.15); }
+  .grid4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+  .stat { background: var(--bg2); border-radius: var(--radius); padding: 10px 14px; text-align: center; }
+  .stat-label { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
+  .stat-val { font-size: 22px; font-weight: 500; }
+  .stat-sm { font-size: 12px; font-weight: 500; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .sep { color: var(--border2); user-select: none; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; font-size: 12px; }
+  .tree-box { border: 0.5px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); min-height: 100px; margin-bottom: 10px; overflow: hidden; }
+  .empty-tree { text-align: center; padding: 3rem 1rem; color: var(--text2); font-size: 14px; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text2); align-items: center; margin-bottom: 10px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  code { font-family: var(--mono); background: var(--bg2); border-radius: 4px; padding: 2px 7px; font-size: 11px; }
+  .log-box { border: 0.5px solid var(--border); border-radius: var(--radius); padding: 8px 12px; max-height: 140px; overflow-y: auto; font-size: 12px; }
+  .log-entry { padding: 2px 0; display: flex; align-items: center; gap: 6px; }
+  .badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; flex-shrink: 0; }
+  .step-panel { border: 1.5px solid var(--info-border); border-radius: var(--radius-lg); padding: 12px 14px; margin-bottom: 10px; background: var(--bg); }
+  .progress-bar { height: 4px; background: var(--bg2); border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; background: var(--info-text); transition: width 0.3s; }
+  .rot-badge { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 5px; flex-shrink: 0; }
+  .step-desc { flex: 1; }
+  .step-desc strong { font-size: 12px; font-weight: 500; display: block; margin-bottom: 2px; }
+  .step-desc small { font-size: 11px; color: var(--text2); }
+  .mini-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text2); margin-bottom: 10px; }
+  .step-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .btn-info { background: #60A5FA; color: #fff; border: none; }
+  .btn-green { background: #6EE7B7; color: #fff; border: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Árbol Binario AVL — Simulador</h1>
+  <div id="root"></div>
+</div>
+
+<script type="text/babel">
+const { useState, useMemo, useEffect } = React;
+
+const H  = n => n?.h ?? 0;
+const BF = n => n ? H(n.l) - H(n.r) : 0;
+const upH = n => n ? { ...n, h: 1 + Math.max(H(n.l), H(n.r)) } : null;
+const rotR = y => { if (!y?.l) return y; const x=y.l; return upH({...x,r:upH({...y,l:x.r})}); };
+const rotL = x => { if (!x?.r) return x; const y=x.r; return upH({...y,l:upH({...x,r:y.l})}); };
+
+function rebal(n, log) {
+  const bf = BF(n);
+  if (bf > 1) {
+    if (BF(n.l) < 0) { log?.push({kind:'LR',msg:`LR nodo ${n.v}: rot-izq(${n.l.v}) → rot-der(${n.v})`}); n=upH({...n,l:rotL(n.l)}); }
+    else              { log?.push({kind:'LL',msg:`LL nodo ${n.v}: rotación derecha simple`}); }
+    return rotR(n);
+  }
+  if (bf < -1) {
+    if (BF(n.r) > 0) { log?.push({kind:'RL',msg:`RL nodo ${n.v}: rot-der(${n.r.v}) → rot-izq(${n.v})`}); n=upH({...n,r:rotR(n.r)}); }
+    else              { log?.push({kind:'RR',msg:`RR nodo ${n.v}: rotación izquierda simple`}); }
+    return rotL(n);
+  }
+  return n;
+}
+
+function avlIns(n,v,log){ if(!n)return{v,l:null,r:null,h:1}; if(v===n.v)return n; const nx=v<n.v?{...n,l:avlIns(n.l,v,log)}:{...n,r:avlIns(n.r,v,log)}; return rebal(upH(nx),log); }
+const minV = n => n.l?minV(n.l):n.v;
+function avlDel(n,v,log){ if(!n)return null; let nx; if(v<n.v)nx={...n,l:avlDel(n.l,v,log)}; else if(v>n.v)nx={...n,r:avlDel(n.r,v,log)}; else{ if(!n.l)return n.r; if(!n.r)return n.l; const sv=minV(n.r); nx={...n,v:sv,r:avlDel(n.r,sv,log)}; } return rebal(upH(nx),log); }
+function bstIns(n,v){ if(!n)return{v,l:null,r:null,h:1}; if(v===n.v)return n; if(v<n.v)return upH({...n,l:bstIns(n.l,v)}); return upH({...n,r:bstIns(n.r,v)}); }
+function bstDel(n,v){ if(!n)return null; if(v<n.v)return upH({...n,l:bstDel(n.l,v)}); if(v>n.v)return upH({...n,r:bstDel(n.r,v)}); if(!n.l)return n.r; if(!n.r)return n.l; const sv=minV(n.r); return upH({...n,v:sv,r:bstDel(n.r,sv)}); }
+function fullRebal(n,log){ if(!n)return null; const nx=upH({...n,l:fullRebal(n.l,log),r:fullRebal(n.r,log)}); return rebal(nx,log); }
+const isBal = n => !n||(Math.abs(BF(n))<=1&&isBal(n.l)&&isBal(n.r));
+
+const findUnbalV = n => !n?null:(findUnbalV(n.l)||findUnbalV(n.r)||(Math.abs(BF(n))>1?n.v:null));
+
+function applyOneRot(root,log){
+  let rotV=null;
+  function fix(n){
+    if(!n)return{n:null,done:false};
+    const l=fix(n.l); if(l.done)return{n:upH({...n,l:l.n}),done:true};
+    const r=fix(n.r); if(r.done)return{n:upH({...n,r:r.n}),done:true};
+    if(Math.abs(BF(n))>1){rotV=n.v;return{n:rebal(upH(n),log),done:true};}
+    return{n,done:false};
+  }
+  const res=fix(root);
+  return{tree:res.n||root,rotV};
+}
+
+function buildSteps(root){
+  const steps=[{tree:root,highlight:findUnbalV(root),rotated:null,rot:null,msg:'Estado inicial — nodo ámbar = próxima rotación'}];
+  let cur=root;
+  for(let i=0;i<25&&!isBal(cur);i++){
+    const log=[]; const{tree,rotV}=applyOneRot(cur,log);
+    if(!log.length)break; cur=tree;
+    steps.push({tree:cur,highlight:findUnbalV(cur),rotated:rotV,rot:log[0].kind,msg:log[0].msg});
+  }
+  return steps;
+}
+
+function treeLayout(root){
+  if(!root)return{nodes:[],edges:[],svgH:100};
+  const pm=new Map(); let idx=0;
+  const io=(n,d)=>{if(!n)return;io(n.l,d+1);pm.set(n,{xi:idx++,d});io(n.r,d+1)};
+  io(root,0);
+  const cnt=pm.size,W=660;
+  const xg=cnt<=1?0:Math.min(66,(W-60)/(cnt-1));
+  const ox=cnt<=1?W/2:(W-(cnt-1)*xg)/2;
+  const yg=82; const nodes=[],edges=[];
+  const pos=n=>{const{xi,d}=pm.get(n);return{x:ox+xi*xg,y:54+d*yg}};
+  const walk=n=>{
+    if(!n)return; const p=pos(n);
+    nodes.push({v:n.v,x:p.x,y:p.y,bf:BF(n)});
+    if(n.l){const lp=pos(n.l);edges.push({x1:p.x,y1:p.y,x2:lp.x,y2:lp.y});}
+    if(n.r){const rp=pos(n.r);edges.push({x1:p.x,y1:p.y,x2:rp.x,y2:rp.y});}
+    walk(n.l);walk(n.r);
+  };
+  walk(root);
+  const maxD=Math.max(...[...pm.values()].map(p=>p.d));
+  return{nodes,edges,svgH:54+maxD*yg+58};
+}
+
+const RC={LL:'#185FA5',RR:'#993C1D',LR:'#0F6E56',RL:'#993556'};
+const ROT_DESC={
+  LL:'Árbol cargado izquierda-izquierda. Una rotación derecha sobre el nodo desbalanceado.',
+  RR:'Árbol cargado derecha-derecha. Una rotación izquierda sobre el nodo desbalanceado.',
+  LR:'Hijo izquierdo cargado a la derecha. Rotación izquierda al hijo, luego derecha al nodo.',
+  RL:'Hijo derecho cargado a la izquierda. Rotación derecha al hijo, luego izquierda al nodo.',
+};
+
+function App(){
+  const [root,  setRoot ]=useState(null);
+  const [insV,  setInsV ]=useState('');
+  const [delV,  setDelV ]=useState('');
+  const [auto,  setAuto ]=useState(false);
+  const [log,   setLog  ]=useState([]);
+  const [steps, setSteps]=useState(null);
+  const [si,    setSi   ]=useState(0);
+  const [play,  setPlay ]=useState(false);
+
+  useEffect(()=>{
+    if(!play||!steps||si>=steps.length-1){if(play)setPlay(false);return;}
+    const t=setTimeout(()=>setSi(i=>i+1),1400);
+    return()=>clearTimeout(t);
+  },[play,si,steps]);
+
+  const cur=steps?steps[si]:null;
+  const dispRoot=cur?cur.tree:root;
+  const{nodes,edges,svgH}=useMemo(()=>treeLayout(dispRoot),[dispRoot]);
+  const balanced=useMemo(()=>isBal(root),[root]);
+
+  const addLog=es=>setLog(p=>[...es,...p].slice(0,40));
+
+  const enterSteps=()=>{
+    if(!root)return;
+    if(isBal(root)){addLog([{kind:'ok',msg:'✓ El árbol ya está balanceado'}]);return;}
+    setSteps(buildSteps(root));setSi(0);setPlay(false);
+  };
+  const exitSteps=(apply)=>{
+    if(apply&&steps){
+      setRoot(steps[steps.length-1].tree);
+      addLog(steps.slice(1).map(s=>({kind:s.rot,msg:s.msg})));
+    }
+    setSteps(null);setPlay(false);
+  };
+
+  const handleIns=()=>{
+    const v=parseInt(insV,10);if(isNaN(v))return;
+    const rl=[]; const nr=auto?avlIns(root,v,rl):bstIns(root,v);
+    setRoot(nr);setSteps(null);setPlay(false);
+    addLog([{kind:'ins',msg:`➕ Insertado ${v}`},...rl]);setInsV('');
+  };
+  const handleDel=()=>{
+    const v=parseInt(delV,10);if(isNaN(v))return;
+    const rl=[]; const nr=auto?avlDel(root,v,rl):bstDel(root,v);
+    setRoot(nr);setSteps(null);setPlay(false);
+    addLog([{kind:'del',msg:`➖ Eliminado ${v}`},...rl]);setDelV('');
+  };
+  const handleBal=()=>{
+    if(!root)return; const rl=[];
+    setRoot(fullRebal(root,rl));setSteps(null);
+    addLog(rl.length?[{kind:'ok',msg:`✓ Balanceado — ${rl.length} rotación(es)`},...rl]:[{kind:'ok',msg:'✓ Ya estaba balanceado'}]);
+  };
+  const handlePreset=(vals,lbl)=>{
+    let t=null;vals.forEach(v=>{t=bstIns(t,v);});
+    setRoot(t);setSteps(null);
+    setLog([{kind:'ok',msg:`[${vals.join('→')}] cargado — presiona ▶ Paso a paso para ver rotación ${lbl}`}]);
+  };
+
+  const R=22;
+  const pct=steps?Math.round((si/(steps.length-1||1))*100):0;
+
+  const makeNodeCols=(stepCtx)=>(n)=>{
+    const ok=Math.abs(n.bf)<=1;
+    if(stepCtx){
+      if(n.v===stepCtx.rotated&&stepCtx.rot){
+        const c=RC[stepCtx.rot];
+        return{fill:`${c}18`,stroke:c,text:c,bfFill:`${c}30`,bfStroke:c,bfText:c,sw:2.5};
+      }
+      if(n.v===stepCtx.highlight){
+        return{fill:'#FAEEDA',stroke:'#BA7517',text:'#633806',bfFill:'#FAC775',bfStroke:'#BA7517',bfText:'#412402',sw:2};
+      }
+    }
+    return ok
+      ?{fill:'#EAF3DE',stroke:'#3B6D11',text:'#27500A',bfFill:'#C0DD97',bfStroke:'#639922',bfText:'#27500A',sw:1.5}
+      :{fill:'#FCEBEB',stroke:'#A32D2D',text:'#791F1F',bfFill:'#F7C1C1',bfStroke:'#E24B4A',bfText:'#791F1F',sw:1.5};
+  };
+
+  const nodeCols=makeNodeCols(cur);
+
+  const TreeSVG=({treeRoot, stepCtx, label, labelColor})=>{
+    const{nodes:ns,edges:es,svgH:sh}=treeLayout(treeRoot);
+    const nc=makeNodeCols(stepCtx);
+    return(
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:11,fontWeight:700,textAlign:'center',marginBottom:6,color:labelColor||'var(--text2)',textTransform:'uppercase',letterSpacing:'0.05em'}}>{label}</div>
+        <div className="tree-box" style={{marginBottom:0}}>
+          {!treeRoot
+            ?<div className="empty-tree">—</div>
+            :(
+              <svg width="100%" viewBox={`0 0 660 ${sh}`} style={{display:'block'}}>
+                {es.map((e,i)=>(<line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--border2)" strokeWidth="1.5"/>))}
+                {ns.map((n,i)=>{
+                  const c=nc(n);
+                  return(
+                    <g key={i}>
+                      <circle cx={n.x} cy={n.y} r={R} fill={c.fill} stroke={c.stroke} strokeWidth={c.sw||1.5}/>
+                      <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central" fontSize="13" fontWeight="500" fill={c.text}>{n.v}</text>
+                      <circle cx={n.x+17} cy={n.y-17} r={10} fill={c.bfFill} stroke={c.bfStroke} strokeWidth="1"/>
+                      <text x={n.x+17} y={n.y-17} textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="700" fill={c.bfText}>{n.bf}</text>
+                    </g>
+                  );
+                })}
+              </svg>
+            )
+          }
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Stats */}
+      <div className="grid4" style={{marginBottom:14}}>
+        {[
+          {l:'Nodos',v:nodes.length,c:null,sm:false},
+          {l:'Altura',v:H(root),c:null,sm:false},
+          {l:'Balance',v:root?(balanced?'✓':'✗'):'–',c:root?(balanced?'#27500A':'#791F1F'):null,sm:false},
+          {l:'Modo',v:steps?`Paso ${si+1}/${steps.length}`:auto?'AVL auto':'BST libre',c:steps||auto?'var(--info-text)':null,sm:true},
+        ].map(({l,v,c,sm})=>(
+          <div key={l} className="stat">
+            <div className="stat-label">{l}</div>
+            <div className={sm?'stat-sm':'stat-val'} style={{color:c||'var(--text)'}}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Controles */}
+      <div className="row">
+        <input type="number" value={insV} onChange={e=>setInsV(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleIns()} placeholder="Valor" style={{width:72}}/>
+        <button onClick={handleIns} style={{background:'#34D399'}}>+ Insertar</button>
+        <span className="sep">|</span>
+        <input type="number" value={delV} onChange={e=>setDelV(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleDel()} placeholder="Valor" style={{width:72}}/>
+        <button onClick={handleDel} style={{background:'#F87171'}}>✕ Eliminar</button>
+        <span className="sep">|</span>
+        <button onClick={handleBal} style={{fontWeight:500,background:'#FBBF24'}}>↺ Balancear</button>
+        <button className="btn-info" onClick={enterSteps}>▶ Paso a paso</button>
+        <button onClick={()=>{setRoot(null);setSteps(null);setLog([])}} style={{background:'#94A3B8'}}>⌫ Limpiar</button>
+        <button onClick={()=>setAuto(a=>!a)}
+          style={{marginLeft:'auto',background:auto?'#818CF8':'#C4B5FD',color:'#fff'}}>
+          Auto-AVL {auto?'✓':'○'}
+        </button>
+      </div>
+
+      {/* Presets */}
+      <div className="presets">
+        <span style={{color:'var(--text2)'}}>Demostrar:</span>
+        {[{k:'LL',v:[30,20,10],bg:'#60A5FA'},{k:'RR',v:[10,20,30],bg:'#F97316'},{k:'LR',v:[30,10,20],bg:'#34D399'},{k:'RL',v:[10,30,20],bg:'#E879F9'}].map(({k,v,bg})=>(
+          <button key={k} onClick={()=>handlePreset(v,k)}
+            style={{fontSize:12,background:bg,color:'#fff',padding:'3px 10px'}}>
+            {k} [{v.join('→')}]
+          </button>
+        ))}
+        <button onClick={()=>handlePreset([50,30,70,20,40,60,80,10,25],'múltiple')}
+          style={{fontSize:12,padding:'3px 10px',background:'#A78BFA',color:'#fff'}}>
+          Árbol grande
+        </button>
+      </div>
+
+      {/* Panel paso a paso */}
+      {steps && (
+        <div className="step-panel">
+          <div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`}}/></div>
+          <div style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:10}}>
+            {cur?.rot
+              ?<span className="rot-badge" style={{background:`${RC[cur.rot]}18`,color:RC[cur.rot]}}>{cur.rot}</span>
+              :<span className="rot-badge" style={{background:'var(--bg2)',color:'var(--text2)'}}>Inicio</span>
+            }
+            <div className="step-desc">
+              <strong>{cur?.msg}</strong>
+              {cur?.rot&&<small>{ROT_DESC[cur.rot]}</small>}
+            </div>
+          </div>
+          <div className="mini-legend">
+            <span><span className="dot" style={{background:'#FAEEDA',border:'1.5px solid #BA7517'}}/>próxima rotación</span>
+            {cur?.rot&&<span><span className="dot" style={{background:`${RC[cur.rot]}25`,border:`1.5px solid ${RC[cur.rot]}`}}/>nodo rotado</span>}
+            <span><span className="dot" style={{background:'#EAF3DE',border:'1px solid #3B6D11'}}/>balanceado</span>
+            <span><span className="dot" style={{background:'#FCEBEB',border:'1px solid #A32D2D'}}/>desbalanceado</span>
+          </div>
+          <div className="step-controls">
+            <button onClick={()=>{setSi(0);setPlay(false)}} disabled={si===0} style={{background:'#94A3B8'}}>⏮</button>
+            <button onClick={()=>setSi(i=>Math.max(0,i-1))} disabled={si===0} style={{background:'#94A3B8'}}>◀ Anterior</button>
+            <button onClick={()=>setSi(i=>Math.min(steps.length-1,i+1))} disabled={si===steps.length-1} style={{background:'#60A5FA'}}>Siguiente ▶</button>
+            <button onClick={()=>setPlay(p=>!p)} style={{fontWeight:500,background:play?'#FBBF24':'#818CF8'}}>{play?'⏸ Pausar':'▶ Auto-reproducir'}</button>
+            <div style={{flex:1}}/>
+            <button className="btn-green" onClick={()=>exitSteps(true)}>✓ Aplicar</button>
+            <button onClick={()=>exitSteps(false)} style={{background:'#94A3B8'}}>✕ Salir</button>
+          </div>
+        </div>
+      )}
+
+      {/* Árbol(es) */}
+      {steps ? (
+        <div style={{display:'flex',gap:12,marginBottom:10,alignItems:'flex-start'}}>
+          <TreeSVG
+            treeRoot={si>0?steps[si-1].tree:null}
+            stepCtx={si>0?steps[si-1]:null}
+            label={si>0?`Paso ${si}`:'—'}
+            labelColor="#94A3B8"
+          />
+          <div style={{display:'flex',alignItems:'center',alignSelf:'center',fontSize:22,color:'#A78BFA',flexShrink:0,paddingBottom:4}}>→</div>
+          <TreeSVG
+            treeRoot={cur?cur.tree:null}
+            stepCtx={cur}
+            label={`Paso ${si+1} (actual)`}
+            labelColor="#818CF8"
+          />
+        </div>
+      ) : (
+        <div className="tree-box">
+          {!dispRoot
+            ?<div className="empty-tree">Árbol vacío — inserta valores para comenzar</div>
+            :(
+              <svg width="100%" viewBox={`0 0 660 ${svgH}`} style={{display:'block'}}>
+                {edges.map((e,i)=>(
+                  <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--border2)" strokeWidth="1.5"/>
+                ))}
+                {nodes.map((n,i)=>{
+                  const c=nodeCols(n);
+                  return(
+                    <g key={i}>
+                      <circle cx={n.x} cy={n.y} r={R} fill={c.fill} stroke={c.stroke} strokeWidth={c.sw||1.5}/>
+                      <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central" fontSize="13" fontWeight="500" fill={c.text}>{n.v}</text>
+                      <circle cx={n.x+17} cy={n.y-17} r={10} fill={c.bfFill} stroke={c.bfStroke} strokeWidth="1"/>
+                      <text x={n.x+17} y={n.y-17} textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="700" fill={c.bfText}>{n.bf}</text>
+                    </g>
+                  );
+                })}
+              </svg>
+            )
+          }
+        </div>
+      )}
+
+      {/* Leyenda */}
+      <div className="legend">
+        <code>FB = H(izq) − H(der) ∈ {'{−1, 0, 1}'}</code>
+        <span><span className="dot" style={{background:'#C0DD97',border:'1px solid #639922'}}/>balanceado</span>
+        <span><span className="dot" style={{background:'#F7C1C1',border:'1px solid #E24B4A'}}/>desbalanceado</span>
+        <div style={{marginLeft:'auto',display:'flex',gap:10}}>
+          {Object.entries(RC).map(([k,c])=>(
+            <span key={k} style={{color:c,fontWeight:700,fontSize:12}}>{k}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Log */}
+      {log.length>0&&(
+        <div className="log-box">
+          {log.map((e,i)=>(
+            <div key={i} className="log-entry"
+              style={{color:e.kind==='ins'?'#27500A':e.kind==='del'?'#791F1F':RC[e.kind]||'var(--text2)'}}>
+              {RC[e.kind]&&(
+                <span className="badge" style={{background:`${RC[e.kind]}22`,color:RC[e.kind]}}>{e.kind}</span>
+              )}
+              {e.msg}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
