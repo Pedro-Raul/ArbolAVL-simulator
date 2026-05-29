@@ -11,23 +11,19 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     --bg: #ffffff; --bg2: #f5f4ef; --bg3: #eeecea;
-    --text: #1a1a18; --text2: #73726c; --text3: #9c9a92;
+    --text: #1a1a18; --text2: #73726c;
     --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
     --info-bg: #e6f1fb; --info-text: #185FA5; --info-border: #B5D4F4;
     --radius: 8px; --radius-lg: 12px;
     --font: system-ui, -apple-system, sans-serif; --mono: ui-monospace, monospace;
   }
-
   body { font-family: var(--font); background: var(--bg3); color: var(--text); min-height: 100vh; padding: 1.5rem; }
-  h1 { font-size: 18px; font-weight: 500; margin-bottom: 1.25rem; color: var(--text); }
-  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
-  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 18px; font-weight: 500; margin-bottom: 1.25rem; }
+  .wrap { max-width: 800px; margin: 0 auto; }
   button {
-    font-family: var(--font); font-size: 13px; color: #fff;
-    background: #A78BFA; border: none;
-    border-radius: var(--radius); padding: 6px 12px; cursor: pointer;
-    transition: filter 0.15s, transform 0.1s;
-    font-weight: 500;
+    font-family: var(--font); font-size: 13px; color: #fff; background: #A78BFA;
+    border: none; border-radius: var(--radius); padding: 6px 12px; cursor: pointer;
+    transition: filter 0.15s, transform 0.1s; font-weight: 500;
   }
   button:hover { filter: brightness(1.08); }
   button:active { transform: scale(0.97); }
@@ -36,7 +32,7 @@
     font-family: var(--font); font-size: 13px; color: var(--text);
     background: var(--bg); border: 0.5px solid var(--border2);
     border-radius: var(--radius); padding: 6px 10px; outline: none;
-    -moz-appearance: textfield;
+    width: 72px; -moz-appearance: textfield;
   }
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   input[type=number]:focus { border-color: var(--info-text); box-shadow: 0 0 0 2px rgba(24,95,165,0.15); }
@@ -47,8 +43,8 @@
   .stat-sm { font-size: 12px; font-weight: 500; }
   .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
   .sep { color: var(--border2); user-select: none; }
-  .presets { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; font-size: 12px; }
-  .tree-box { border: 0.5px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); min-height: 100px; margin-bottom: 10px; overflow: hidden; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .tree-box { border: 0.5px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); min-height: 100px; margin-bottom: 10px; overflow: auto; }
   .empty-tree { text-align: center; padding: 3rem 1rem; color: var(--text2); font-size: 14px; }
   .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text2); align-items: center; margin-bottom: 10px; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
@@ -61,12 +57,12 @@
   .progress-fill { height: 100%; border-radius: 2px; background: var(--info-text); transition: width 0.3s; }
   .rot-badge { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 5px; flex-shrink: 0; }
   .step-desc { flex: 1; }
-  .step-desc strong { font-size: 12px; font-weight: 500; display: block; margin-bottom: 2px; }
+  .step-desc strong { font-size: 12px; font-weight: 600; display: block; margin-bottom: 2px; }
   .step-desc small { font-size: 11px; color: var(--text2); }
   .mini-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text2); margin-bottom: 10px; }
   .step-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .btn-info { background: #60A5FA; color: #fff; border: none; }
-  .btn-green { background: #6EE7B7; color: #fff; border: none; }
+  .btn-info  { background: #60A5FA; }
+  .btn-green { background: #34D399; }
 </style>
 </head>
 <body>
@@ -76,249 +72,416 @@
 </div>
 
 <script type="text/babel">
-const { useState, useMemo, useEffect } = React;
+const { useState, useMemo, useEffect, useCallback } = React;
 
-const H  = n => n?.h ?? 0;
-const BF = n => n ? H(n.l) - H(n.r) : 0;
+// ── Utilidades básicas ────────────────────────────────────────────────────
+const H   = n => n ? n.h : 0;
+const BF  = n => n ? H(n.l) - H(n.r) : 0;
 const upH = n => n ? { ...n, h: 1 + Math.max(H(n.l), H(n.r)) } : null;
-const rotR = y => { if (!y?.l) return y; const x=y.l; return upH({...x,r:upH({...y,l:x.r})}); };
-const rotL = x => { if (!x?.r) return x; const y=x.r; return upH({...y,l:upH({...x,r:y.l})}); };
 
+// ── Rotaciones puras ──────────────────────────────────────────────────────
+// rotR: y es la raíz, su hijo izquierdo x sube
+const rotR = y => {
+  const x = y.l;
+  return upH({ ...x, r: upH({ ...y, l: x.r }) });
+};
+// rotL: x es la raíz, su hijo derecho y sube
+const rotL = x => {
+  const y = x.r;
+  return upH({ ...y, l: upH({ ...x, r: y.l }) });
+};
+
+// ── Rebalanceo de un nodo (sus hijos ya están balanceados) ────────────────
 function rebal(n, log) {
+  if (!n) return null;
+  n = upH(n);
   const bf = BF(n);
   if (bf > 1) {
-    if (BF(n.l) < 0) { log?.push({kind:'LR',msg:`LR nodo ${n.v}: rot-izq(${n.l.v}) → rot-der(${n.v})`}); n=upH({...n,l:rotL(n.l)}); }
-    else              { log?.push({kind:'LL',msg:`LL nodo ${n.v}: rotación derecha simple`}); }
+    if (BF(n.l) < 0) {               // LR
+      log && log.push({ kind:'LR', msg:'LR en nodo ' + n.v + ': rot-izq sobre ' + n.l.v + ', luego rot-der sobre ' + n.v });
+      return rotR(upH({ ...n, l: rotL(n.l) }));
+    }
+    log && log.push({ kind:'LL', msg:'LL en nodo ' + n.v + ': rotación derecha simple' });
     return rotR(n);
   }
   if (bf < -1) {
-    if (BF(n.r) > 0) { log?.push({kind:'RL',msg:`RL nodo ${n.v}: rot-der(${n.r.v}) → rot-izq(${n.v})`}); n=upH({...n,r:rotR(n.r)}); }
-    else              { log?.push({kind:'RR',msg:`RR nodo ${n.v}: rotación izquierda simple`}); }
+    if (BF(n.r) > 0) {               // RL
+      log && log.push({ kind:'RL', msg:'RL en nodo ' + n.v + ': rot-der sobre ' + n.r.v + ', luego rot-izq sobre ' + n.v });
+      return rotL(upH({ ...n, r: rotR(n.r) }));
+    }
+    log && log.push({ kind:'RR', msg:'RR en nodo ' + n.v + ': rotación izquierda simple' });
     return rotL(n);
   }
   return n;
 }
 
-function avlIns(n,v,log){ if(!n)return{v,l:null,r:null,h:1}; if(v===n.v)return n; const nx=v<n.v?{...n,l:avlIns(n.l,v,log)}:{...n,r:avlIns(n.r,v,log)}; return rebal(upH(nx),log); }
-const minV = n => n.l?minV(n.l):n.v;
-function avlDel(n,v,log){ if(!n)return null; let nx; if(v<n.v)nx={...n,l:avlDel(n.l,v,log)}; else if(v>n.v)nx={...n,r:avlDel(n.r,v,log)}; else{ if(!n.l)return n.r; if(!n.r)return n.l; const sv=minV(n.r); nx={...n,v:sv,r:avlDel(n.r,sv,log)}; } return rebal(upH(nx),log); }
-function bstIns(n,v){ if(!n)return{v,l:null,r:null,h:1}; if(v===n.v)return n; if(v<n.v)return upH({...n,l:bstIns(n.l,v)}); return upH({...n,r:bstIns(n.r,v)}); }
-function bstDel(n,v){ if(!n)return null; if(v<n.v)return upH({...n,l:bstDel(n.l,v)}); if(v>n.v)return upH({...n,r:bstDel(n.r,v)}); if(!n.l)return n.r; if(!n.r)return n.l; const sv=minV(n.r); return upH({...n,v:sv,r:bstDel(n.r,sv)}); }
-function fullRebal(n,log){ if(!n)return null; const nx=upH({...n,l:fullRebal(n.l,log),r:fullRebal(n.r,log)}); return rebal(nx,log); }
-const isBal = n => !n||(Math.abs(BF(n))<=1&&isBal(n.l)&&isBal(n.r));
-
-const findUnbalV = n => !n?null:(findUnbalV(n.l)||findUnbalV(n.r)||(Math.abs(BF(n))>1?n.v:null));
-
-function applyOneRot(root,log){
-  let rotV=null;
-  function fix(n){
-    if(!n)return{n:null,done:false};
-    const l=fix(n.l); if(l.done)return{n:upH({...n,l:l.n}),done:true};
-    const r=fix(n.r); if(r.done)return{n:upH({...n,r:r.n}),done:true};
-    if(Math.abs(BF(n))>1){rotV=n.v;return{n:rebal(upH(n),log),done:true};}
-    return{n,done:false};
-  }
-  const res=fix(root);
-  return{tree:res.n||root,rotV};
+// ── Inserción/Eliminación AVL ─────────────────────────────────────────────
+function avlIns(n, v, log) {
+  if (!n) return { v, l: null, r: null, h: 1 };
+  if (v === n.v) return n;
+  if (v < n.v) return rebal(upH({ ...n, l: avlIns(n.l, v, log) }), log);
+  return rebal(upH({ ...n, r: avlIns(n.r, v, log) }), log);
 }
 
-function buildSteps(root){
-  const steps=[{tree:root,highlight:findUnbalV(root),rotated:null,rot:null,msg:'Estado inicial — nodo ámbar = próxima rotación'}];
-  let cur=root;
-  for(let i=0;i<25&&!isBal(cur);i++){
-    const log=[]; const{tree,rotV}=applyOneRot(cur,log);
-    if(!log.length)break; cur=tree;
-    steps.push({tree:cur,highlight:findUnbalV(cur),rotated:rotV,rot:log[0].kind,msg:log[0].msg});
+const minNode = n => n.l ? minNode(n.l) : n;
+
+function avlDel(n, v, log) {
+  if (!n) return null;
+  if (v < n.v) return rebal(upH({ ...n, l: avlDel(n.l, v, log) }), log);
+  if (v > n.v) return rebal(upH({ ...n, r: avlDel(n.r, v, log) }), log);
+  if (!n.l) return n.r;
+  if (!n.r) return n.l;
+  const s = minNode(n.r);
+  const newR = avlDel(n.r, s.v, log);
+  return rebal(upH({ ...n, v: s.v, r: newR }), log);
+}
+
+// ── Inserción/Eliminación BST (sin balanceo) ──────────────────────────────
+function bstIns(n, v) {
+  if (!n) return { v, l: null, r: null, h: 1 };
+  if (v === n.v) return n;
+  if (v < n.v) return upH({ ...n, l: bstIns(n.l, v) });
+  return upH({ ...n, r: bstIns(n.r, v) });
+}
+function bstDel(n, v) {
+  if (!n) return null;
+  if (v < n.v) return upH({ ...n, l: bstDel(n.l, v) });
+  if (v > n.v) return upH({ ...n, r: bstDel(n.r, v) });
+  if (!n.l) return n.r;
+  if (!n.r) return n.l;
+  const s = minNode(n.r);
+  const newR = bstDel(n.r, s.v);
+  return upH({ ...n, v: s.v, r: newR });
+}
+
+// ── Verificación y balanceo completo ─────────────────────────────────────
+const isBal = n => !n || (Math.abs(BF(n)) <= 1 && isBal(n.l) && isBal(n.r));
+
+function rebalPass(n, log) {
+  if (!n) return null;
+  return rebal(upH({ ...n, l: rebalPass(n.l, log), r: rebalPass(n.r, log) }), log);
+}
+function fullRebal(n, log) {
+  let cur = n;
+  for (let i = 0; i < 60 && !isBal(cur); i++) cur = rebalPass(cur, log);
+  return cur;
+}
+
+// ── Paso a paso ───────────────────────────────────────────────────────────
+// Halla el nodo desbalanceado más profundo (post-order)
+function deepestUnbal(n) {
+  if (!n) return null;
+  const fromL = deepestUnbal(n.l);
+  if (fromL !== null) return fromL;
+  const fromR = deepestUnbal(n.r);
+  if (fromR !== null) return fromR;
+  return Math.abs(BF(n)) > 1 ? n.v : null;
+}
+
+// Aplica UNA sola rotación (en el nodo más profundo desbalanceado)
+function applyOneRot(root) {
+  let result = null;
+  function fix(n) {
+    if (!n) return n;
+    const newL = result ? n.l : fix(n.l);
+    const newR = result ? n.r : fix(n.r);
+    const cur  = upH({ ...n, l: newL, r: newR });
+    if (!result && Math.abs(BF(cur)) > 1) {
+      const lg = [];
+      const balanced = rebal(cur, lg);
+      if (lg.length) result = { rotV: cur.v, rotKind: lg[0].kind, msg: lg[0].msg };
+      return balanced;
+    }
+    return cur;
+  }
+  const tree = fix(root) || root;
+  return result ? { tree, ...result } : { tree };
+}
+
+function buildSteps(root) {
+  const steps = [{
+    tree: root, highlight: deepestUnbal(root),
+    rotated: null, rot: null,
+    msg: 'Estado inicial — nodo ámbar es el próximo a rotar',
+  }];
+  let cur = root;
+  for (let i = 0; i < 60 && !isBal(cur); i++) {
+    const { tree, rotV, rotKind, msg } = applyOneRot(cur);
+    if (!rotV) break;
+    cur = tree;
+    steps.push({ tree: cur, highlight: deepestUnbal(cur), rotated: rotV, rot: rotKind, msg: msg || '' });
   }
   return steps;
 }
 
-function treeLayout(root){
-  if(!root)return{nodes:[],edges:[],svgH:100};
-  const pm=new Map(); let idx=0;
-  const io=(n,d)=>{if(!n)return;io(n.l,d+1);pm.set(n,{xi:idx++,d});io(n.r,d+1)};
-  io(root,0);
-  const cnt=pm.size,W=660;
-  const xg=cnt<=1?0:Math.min(66,(W-60)/(cnt-1));
-  const ox=cnt<=1?W/2:(W-(cnt-1)*xg)/2;
-  const yg=82; const nodes=[],edges=[];
-  const pos=n=>{const{xi,d}=pm.get(n);return{x:ox+xi*xg,y:54+d*yg}};
-  const walk=n=>{
-    if(!n)return; const p=pos(n);
-    nodes.push({v:n.v,x:p.x,y:p.y,bf:BF(n)});
-    if(n.l){const lp=pos(n.l);edges.push({x1:p.x,y1:p.y,x2:lp.x,y2:lp.y});}
-    if(n.r){const rp=pos(n.r);edges.push({x1:p.x,y1:p.y,x2:rp.x,y2:rp.y});}
-    walk(n.l);walk(n.r);
-  };
+// ── Layout visual (Reingold-Tilford simplificado) ─────────────────────────
+const NODE_R = 22;
+const Y_GAP  = 84;
+const X_GAP  = 52;
+
+function treeLayout(root) {
+  if (!root) return { nodes: [], edges: [], svgW: 400, svgH: 100 };
+
+  // Asignar X por recorrido in-order dejando espacio mínimo X_GAP entre nodos
+  const xMap = new Map();
+  const dMap = new Map();
+  let counter = 0;
+
+  function assignPos(n, depth) {
+    if (!n) return;
+    dMap.set(n, depth);
+    assignPos(n.l, depth + 1);
+    xMap.set(n, counter * X_GAP);
+    counter++;
+    assignPos(n.r, depth + 1);
+  }
+  assignPos(root, 0);
+
+  const totalW = (counter - 1) * X_GAP;
+  const svgW   = Math.max(420, totalW + X_GAP * 2);
+  const offX   = (svgW - totalW) / 2;
+
+  const nodes = [], edges = [];
+
+  function walk(n) {
+    if (!n) return;
+    const x = xMap.get(n) + offX;
+    const y = dMap.get(n) * Y_GAP + 54;
+    nodes.push({ v: n.v, x, y, bf: BF(n) });
+
+    const addEdge = (child) => {
+      const cx = xMap.get(child) + offX;
+      const cy = dMap.get(child) * Y_GAP + 54;
+      const dx = cx - x, dy = cy - y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist === 0) return;
+      const ux = dx/dist, uy = dy/dist;
+      edges.push({ x1: x+ux*NODE_R, y1: y+uy*NODE_R, x2: cx-ux*NODE_R, y2: cy-uy*NODE_R });
+    };
+    if (n.l) addEdge(n.l);
+    if (n.r) addEdge(n.r);
+    walk(n.l);
+    walk(n.r);
+  }
   walk(root);
-  const maxD=Math.max(...[...pm.values()].map(p=>p.d));
-  return{nodes,edges,svgH:54+maxD*yg+58};
+
+  const maxDepth = Math.max(...[...dMap.values()]);
+  const svgH = maxDepth * Y_GAP + 54 + 60;
+  return { nodes, edges, svgW, svgH };
 }
 
-const RC={LL:'#185FA5',RR:'#993C1D',LR:'#0F6E56',RL:'#993556'};
-const ROT_DESC={
-  LL:'Árbol cargado izquierda-izquierda. Una rotación derecha sobre el nodo desbalanceado.',
-  RR:'Árbol cargado derecha-derecha. Una rotación izquierda sobre el nodo desbalanceado.',
-  LR:'Hijo izquierdo cargado a la derecha. Rotación izquierda al hijo, luego derecha al nodo.',
-  RL:'Hijo derecho cargado a la izquierda. Rotación derecha al hijo, luego izquierda al nodo.',
+// ── Constantes de color ───────────────────────────────────────────────────
+const RC = { LL:'#1D4ED8', RR:'#C2410C', LR:'#065F46', RL:'#7E22CE' };
+
+const ROT_DESC = {
+  LL: 'Pesado iz-iz. Rotación derecha simple sobre el nodo desbalanceado.',
+  RR: 'Pesado der-der. Rotación izquierda simple sobre el nodo desbalanceado.',
+  LR: 'Hijo izq pesado a la der. Rot-izq al hijo, luego rot-der al nodo.',
+  RL: 'Hijo der pesado a la izq. Rot-der al hijo, luego rot-izq al nodo.',
 };
 
-function App(){
-  const [root,  setRoot ]=useState(null);
-  const [insV,  setInsV ]=useState('');
-  const [delV,  setDelV ]=useState('');
-  const [auto,  setAuto ]=useState(false);
-  const [log,   setLog  ]=useState([]);
-  const [steps, setSteps]=useState(null);
-  const [si,    setSi   ]=useState(0);
-  const [play,  setPlay ]=useState(false);
+const ROT_PASTEL = {
+  LL: { fill:'#BFDBFE', stroke:'#3B82F6', text:'#1E40AF', bfFill:'#93C5FD', bfStroke:'#3B82F6', bfText:'#1E3A8A' },
+  RR: { fill:'#FED7AA', stroke:'#F97316', text:'#9A3412', bfFill:'#FDBA74', bfStroke:'#F97316', bfText:'#7C2D12' },
+  LR: { fill:'#A7F3D0', stroke:'#10B981', text:'#064E3B', bfFill:'#6EE7B7', bfStroke:'#10B981', bfText:'#064E3B' },
+  RL: { fill:'#F5D0FE', stroke:'#D946EF', text:'#701A75', bfFill:'#E879F9', bfStroke:'#D946EF', bfText:'#701A75' },
+};
 
-  useEffect(()=>{
-    if(!play||!steps||si>=steps.length-1){if(play)setPlay(false);return;}
-    const t=setTimeout(()=>setSi(i=>i+1),1400);
-    return()=>clearTimeout(t);
-  },[play,si,steps]);
-
-  const cur=steps?steps[si]:null;
-  const dispRoot=cur?cur.tree:root;
-  const{nodes,edges,svgH}=useMemo(()=>treeLayout(dispRoot),[dispRoot]);
-  const balanced=useMemo(()=>isBal(root),[root]);
-
-  const addLog=es=>setLog(p=>[...es,...p].slice(0,40));
-
-  const enterSteps=()=>{
-    if(!root)return;
-    if(isBal(root)){addLog([{kind:'ok',msg:'✓ El árbol ya está balanceado'}]);return;}
-    setSteps(buildSteps(root));setSi(0);setPlay(false);
-  };
-  const exitSteps=(apply)=>{
-    if(apply&&steps){
-      setRoot(steps[steps.length-1].tree);
-      addLog(steps.slice(1).map(s=>({kind:s.rot,msg:s.msg})));
+function nodeColors(bf, stepCtx, nodeV) {
+  if (stepCtx) {
+    if (nodeV === stepCtx.rotated && stepCtx.rot) {
+      const p = ROT_PASTEL[stepCtx.rot] || ROT_PASTEL.LL;
+      return { ...p, sw: 2.5 };
     }
-    setSteps(null);setPlay(false);
-  };
-
-  const handleIns=()=>{
-    const v=parseInt(insV,10);if(isNaN(v))return;
-    const rl=[]; const nr=auto?avlIns(root,v,rl):bstIns(root,v);
-    setRoot(nr);setSteps(null);setPlay(false);
-    addLog([{kind:'ins',msg:`➕ Insertado ${v}`},...rl]);setInsV('');
-  };
-  const handleDel=()=>{
-    const v=parseInt(delV,10);if(isNaN(v))return;
-    const rl=[]; const nr=auto?avlDel(root,v,rl):bstDel(root,v);
-    setRoot(nr);setSteps(null);setPlay(false);
-    addLog([{kind:'del',msg:`➖ Eliminado ${v}`},...rl]);setDelV('');
-  };
-  const handleBal=()=>{
-    if(!root)return; const rl=[];
-    setRoot(fullRebal(root,rl));setSteps(null);
-    addLog(rl.length?[{kind:'ok',msg:`✓ Balanceado — ${rl.length} rotación(es)`},...rl]:[{kind:'ok',msg:'✓ Ya estaba balanceado'}]);
-  };
-  const handlePreset=(vals,lbl)=>{
-    let t=null;vals.forEach(v=>{t=bstIns(t,v);});
-    setRoot(t);setSteps(null);
-    setLog([{kind:'ok',msg:`[${vals.join('→')}] cargado — presiona ▶ Paso a paso para ver rotación ${lbl}`}]);
-  };
-
-  const R=22;
-  const pct=steps?Math.round((si/(steps.length-1||1))*100):0;
-
-  const makeNodeCols=(stepCtx)=>(n)=>{
-    const ok=Math.abs(n.bf)<=1;
-    if(stepCtx){
-      if(n.v===stepCtx.rotated&&stepCtx.rot){
-        const c=RC[stepCtx.rot];
-        return{fill:`${c}18`,stroke:c,text:c,bfFill:`${c}30`,bfStroke:c,bfText:c,sw:2.5};
-      }
-      if(n.v===stepCtx.highlight){
-        return{fill:'#FAEEDA',stroke:'#BA7517',text:'#633806',bfFill:'#FAC775',bfStroke:'#BA7517',bfText:'#412402',sw:2};
-      }
+    if (nodeV === stepCtx.highlight) {
+      return { fill:'#FEF3C7', stroke:'#F59E0B', text:'#78350F',
+               bfFill:'#FDE68A', bfStroke:'#F59E0B', bfText:'#78350F', sw: 2 };
     }
-    return ok
-      ?{fill:'#EAF3DE',stroke:'#3B6D11',text:'#27500A',bfFill:'#C0DD97',bfStroke:'#639922',bfText:'#27500A',sw:1.5}
-      :{fill:'#FCEBEB',stroke:'#A32D2D',text:'#791F1F',bfFill:'#F7C1C1',bfStroke:'#E24B4A',bfText:'#791F1F',sw:1.5};
-  };
+  }
+  return Math.abs(bf) <= 1
+    ? { fill:'#D1FAE5', stroke:'#34D399', text:'#065F46',
+        bfFill:'#A7F3D0', bfStroke:'#34D399', bfText:'#065F46', sw: 1.5 }
+    : { fill:'#FFE4E6', stroke:'#F87171', text:'#9F1239',
+        bfFill:'#FECACA', bfStroke:'#F87171', bfText:'#9F1239', sw: 1.5 };
+}
 
-  const nodeCols=makeNodeCols(cur);
-
-  const TreeSVG=({treeRoot, stepCtx, label, labelColor})=>{
-    const{nodes:ns,edges:es,svgH:sh}=treeLayout(treeRoot);
-    const nc=makeNodeCols(stepCtx);
-    return(
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:11,fontWeight:700,textAlign:'center',marginBottom:6,color:labelColor||'var(--text2)',textTransform:'uppercase',letterSpacing:'0.05em'}}>{label}</div>
-        <div className="tree-box" style={{marginBottom:0}}>
-          {!treeRoot
-            ?<div className="empty-tree">—</div>
-            :(
-              <svg width="100%" viewBox={`0 0 660 ${sh}`} style={{display:'block'}}>
-                {es.map((e,i)=>(<line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--border2)" strokeWidth="1.5"/>))}
-                {ns.map((n,i)=>{
-                  const c=nc(n);
-                  return(
-                    <g key={i}>
-                      <circle cx={n.x} cy={n.y} r={R} fill={c.fill} stroke={c.stroke} strokeWidth={c.sw||1.5}/>
-                      <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central" fontSize="13" fontWeight="500" fill={c.text}>{n.v}</text>
-                      <circle cx={n.x+17} cy={n.y-17} r={10} fill={c.bfFill} stroke={c.bfStroke} strokeWidth="1"/>
-                      <text x={n.x+17} y={n.y-17} textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="700" fill={c.bfText}>{n.bf}</text>
-                    </g>
-                  );
-                })}
-              </svg>
-            )
-          }
-        </div>
+// ── Subcomponente SVG ─────────────────────────────────────────────────────
+function TreeSVG({ treeRoot, stepCtx, label, labelColor }) {
+  const { nodes, edges, svgW, svgH } = useMemo(() => treeLayout(treeRoot), [treeRoot]);
+  return (
+    <div style={{ flex:1, minWidth:0 }}>
+      <div style={{ fontSize:11, fontWeight:700, textAlign:'center', marginBottom:6,
+                    color: labelColor||'var(--text2)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+        {label}
       </div>
-    );
+      <div className="tree-box" style={{ marginBottom:0 }}>
+        {!treeRoot
+          ? <div className="empty-tree">—</div>
+          : (
+            <svg width={svgW} height={svgH} viewBox={'0 0 ' + svgW + ' ' + svgH}
+                 style={{ display:'block', minWidth:'100%' }}>
+              {edges.map((e,i) => (
+                <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                      stroke="var(--border2)" strokeWidth="1.5" strokeLinecap="round"/>
+              ))}
+              {nodes.map((n,i) => {
+                const c = nodeColors(n.bf, stepCtx, n.v);
+                return (
+                  <g key={i}>
+                    <circle cx={n.x} cy={n.y} r={NODE_R} fill={c.fill} stroke={c.stroke} strokeWidth={c.sw}/>
+                    <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central"
+                          fontSize="13" fontWeight="600" fill={c.text}>{n.v}</text>
+                    <circle cx={n.x+18} cy={n.y-18} r={11} fill={c.bfFill} stroke={c.bfStroke} strokeWidth="1"/>
+                    <text x={n.x+18} y={n.y-18} textAnchor="middle" dominantBaseline="central"
+                          fontSize="10" fontWeight="700" fill={c.bfText}>{n.bf}</text>
+                  </g>
+                );
+              })}
+            </svg>
+          )
+        }
+      </div>
+    </div>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────────────────
+function App() {
+  const [root,  setRoot ] = useState(null);
+  const [insV,  setInsV ] = useState('');
+  const [delV,  setDelV ] = useState('');
+  const [auto,  setAuto ] = useState(false);
+  const [log,   setLog  ] = useState([]);
+  const [steps, setSteps] = useState(null);
+  const [si,    setSi   ] = useState(0);
+  const [play,  setPlay ] = useState(false);
+
+  // Auto-reproducción paso a paso
+  useEffect(() => {
+    if (!play || !steps || si >= steps.length - 1) { if (play) setPlay(false); return; }
+    const t = setTimeout(() => setSi(i => i + 1), 1200);
+    return () => clearTimeout(t);
+  }, [play, si, steps]);
+
+  const cur      = steps ? steps[si] : null;
+  const dispRoot = cur ? cur.tree : root;
+  const balanced = useMemo(() => isBal(root), [root]);
+  const { nodes, edges, svgW, svgH } = useMemo(() => treeLayout(dispRoot), [dispRoot]);
+  const pct = steps ? Math.round((si / (steps.length - 1 || 1)) * 100) : 0;
+
+  const addLog = useCallback(es => setLog(p => [...es, ...p].slice(0, 60)), []);
+
+  // Busca un valor en el árbol
+  const findVal = (n, v) => n && (n.v === v || findVal(n.l, v) || findVal(n.r, v));
+
+  const handleIns = () => {
+    const v = parseInt(insV, 10);
+    if (isNaN(v)) return;
+    const lg = [];
+    const nr = auto ? avlIns(root, v, lg) : bstIns(root, v);
+    setRoot(nr); setSteps(null); setPlay(false);
+    addLog([{ kind:'ins', msg:'Insertado ' + v }, ...lg]);
+    setInsV('');
+  };
+
+  const handleDel = () => {
+    const v = parseInt(delV, 10);
+    if (isNaN(v)) return;
+    if (!findVal(root, v)) {
+      addLog([{ kind:'err', msg:'Valor ' + v + ' no encontrado en el árbol' }]);
+      setDelV(''); return;
+    }
+    const lg = [];
+    const nr = auto ? avlDel(root, v, lg) : bstDel(root, v);
+    setRoot(nr); setSteps(null); setPlay(false);
+    addLog([{ kind:'del', msg:'Eliminado ' + v }, ...lg]);
+    setDelV('');
+  };
+
+  const handleBal = () => {
+    if (!root) return;
+    if (isBal(root)) { addLog([{ kind:'ok', msg:'El árbol ya estaba balanceado' }]); return; }
+    const lg = [];
+    setRoot(fullRebal(root, lg)); setSteps(null);
+    addLog([{ kind:'ok', msg:'Balanceado con ' + lg.length + ' rotación(es)' }, ...lg]);
+  };
+
+  const enterSteps = () => {
+    if (!root) return;
+    if (isBal(root)) { addLog([{ kind:'ok', msg:'El árbol ya está balanceado' }]); return; }
+    setSteps(buildSteps(root)); setSi(0); setPlay(false);
+  };
+
+  const exitSteps = (apply) => {
+    if (apply && steps) {
+      setRoot(steps[steps.length - 1].tree);
+      addLog(steps.slice(1).map(s => ({ kind: s.rot, msg: s.msg })));
+    }
+    setSteps(null); setPlay(false);
+  };
+
+  const handlePreset = (vals, lbl) => {
+    let t = null;
+    vals.forEach(v => { t = auto ? avlIns(t, v, []) : bstIns(t, v); });
+    setRoot(t); setSteps(null); setPlay(false);
+    setLog([{ kind:'ok', msg:'[' + vals.join('→') + '] cargado — presiona Paso a paso para ver ' + lbl }]);
   };
 
   return (
     <div>
       {/* Stats */}
-      <div className="grid4" style={{marginBottom:14}}>
+      <div className="grid4" style={{ marginBottom:14 }}>
         {[
-          {l:'Nodos',v:nodes.length,c:null,sm:false},
-          {l:'Altura',v:H(root),c:null,sm:false},
-          {l:'Balance',v:root?(balanced?'✓':'✗'):'–',c:root?(balanced?'#27500A':'#791F1F'):null,sm:false},
-          {l:'Modo',v:steps?`Paso ${si+1}/${steps.length}`:auto?'AVL auto':'BST libre',c:steps||auto?'var(--info-text)':null,sm:true},
-        ].map(({l,v,c,sm})=>(
+          { l:'Nodos',  v: nodes.length },
+          { l:'Altura', v: H(root) },
+          { l:'Balance', v: root ? (balanced?'✓':'✗') : '–',
+            c: root ? (balanced?'#065F46':'#9F1239') : null },
+          { l:'Modo', v: steps ? ('Paso '+(si+1)+'/'+steps.length) : auto?'AVL auto':'BST libre',
+            c: (steps||auto) ? 'var(--info-text)' : null, sm:true },
+        ].map(({ l, v, c, sm }) => (
           <div key={l} className="stat">
             <div className="stat-label">{l}</div>
-            <div className={sm?'stat-sm':'stat-val'} style={{color:c||'var(--text)'}}>{v}</div>
+            <div className={sm?'stat-sm':'stat-val'} style={{ color: c||'var(--text)' }}>{v}</div>
           </div>
         ))}
       </div>
 
       {/* Controles */}
       <div className="row">
-        <input type="number" value={insV} onChange={e=>setInsV(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleIns()} placeholder="Valor" style={{width:72}}/>
-        <button onClick={handleIns} style={{background:'#34D399'}}>+ Insertar</button>
+        <input type="number" value={insV} onChange={e=>setInsV(e.target.value)}
+               onKeyDown={e=>e.key==='Enter'&&handleIns()} placeholder="Valor"/>
+        <button onClick={handleIns} style={{ background:'#34D399' }}>+ Insertar</button>
         <span className="sep">|</span>
-        <input type="number" value={delV} onChange={e=>setDelV(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleDel()} placeholder="Valor" style={{width:72}}/>
-        <button onClick={handleDel} style={{background:'#F87171'}}>✕ Eliminar</button>
+        <input type="number" value={delV} onChange={e=>setDelV(e.target.value)}
+               onKeyDown={e=>e.key==='Enter'&&handleDel()} placeholder="Valor"/>
+        <button onClick={handleDel} style={{ background:'#F87171' }}>✕ Eliminar</button>
         <span className="sep">|</span>
-        <button onClick={handleBal} style={{fontWeight:500,background:'#FBBF24'}}>↺ Balancear</button>
+        <button onClick={handleBal} style={{ background:'#FBBF24' }}>↺ Balancear</button>
         <button className="btn-info" onClick={enterSteps}>▶ Paso a paso</button>
-        <button onClick={()=>{setRoot(null);setSteps(null);setLog([])}} style={{background:'#94A3B8'}}>⌫ Limpiar</button>
+        <button onClick={()=>{setRoot(null);setSteps(null);setLog([]);setPlay(false);}}
+                style={{ background:'#94A3B8' }}>⌫ Limpiar</button>
         <button onClick={()=>setAuto(a=>!a)}
-          style={{marginLeft:'auto',background:auto?'#818CF8':'#C4B5FD',color:'#fff'}}>
+                style={{ marginLeft:'auto', background: auto?'#818CF8':'#C4B5FD' }}>
           Auto-AVL {auto?'✓':'○'}
         </button>
       </div>
 
       {/* Presets */}
       <div className="presets">
-        <span style={{color:'var(--text2)'}}>Demostrar:</span>
-        {[{k:'LL',v:[30,20,10],bg:'#60A5FA'},{k:'RR',v:[10,20,30],bg:'#F97316'},{k:'LR',v:[30,10,20],bg:'#34D399'},{k:'RL',v:[10,30,20],bg:'#E879F9'}].map(({k,v,bg})=>(
-          <button key={k} onClick={()=>handlePreset(v,k)}
-            style={{fontSize:12,background:bg,color:'#fff',padding:'3px 10px'}}>
+        <span style={{ color:'var(--text2)', fontSize:12 }}>Demostrar:</span>
+        {[
+          { k:'LL', v:[30,20,10], bg:'#3B82F6' },
+          { k:'RR', v:[10,20,30], bg:'#F97316' },
+          { k:'LR', v:[30,10,20], bg:'#10B981' },
+          { k:'RL', v:[10,30,20], bg:'#D946EF' },
+        ].map(({ k, v, bg }) => (
+          <button key={k} onClick={()=>handlePreset(v,'rotación '+k)}
+                  style={{ fontSize:12, background:bg, padding:'3px 10px' }}>
             {k} [{v.join('→')}]
           </button>
         ))}
-        <button onClick={()=>handlePreset([50,30,70,20,40,60,80,10,25],'múltiple')}
-          style={{fontSize:12,padding:'3px 10px',background:'#A78BFA',color:'#fff'}}>
+        <button onClick={()=>handlePreset([50,30,70,20,40,60,80,10,25,35],'múltiples rotaciones')}
+                style={{ fontSize:12, background:'#A78BFA', padding:'3px 10px' }}>
           Árbol grande
         </button>
       </div>
@@ -326,69 +489,93 @@ function App(){
       {/* Panel paso a paso */}
       {steps && (
         <div className="step-panel">
-          <div className="progress-bar"><div className="progress-fill" style={{width:`${pct}%`}}/></div>
-          <div style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:10}}>
-            {cur?.rot
-              ?<span className="rot-badge" style={{background:`${RC[cur.rot]}18`,color:RC[cur.rot]}}>{cur.rot}</span>
-              :<span className="rot-badge" style={{background:'var(--bg2)',color:'var(--text2)'}}>Inicio</span>
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width:pct+'%' }}/>
+          </div>
+          <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:10 }}>
+            {cur && cur.rot
+              ? <span className="rot-badge"
+                      style={{ background: ROT_PASTEL[cur.rot] && ROT_PASTEL[cur.rot].fill,
+                               color: RC[cur.rot] }}>
+                  {cur.rot}
+                </span>
+              : <span className="rot-badge" style={{ background:'var(--bg2)', color:'var(--text2)' }}>
+                  Inicio
+                </span>
             }
             <div className="step-desc">
-              <strong>{cur?.msg}</strong>
-              {cur?.rot&&<small>{ROT_DESC[cur.rot]}</small>}
+              <strong>{cur && cur.msg}</strong>
+              {cur && cur.rot && <small>{ROT_DESC[cur.rot]}</small>}
             </div>
           </div>
           <div className="mini-legend">
-            <span><span className="dot" style={{background:'#FAEEDA',border:'1.5px solid #BA7517'}}/>próxima rotación</span>
-            {cur?.rot&&<span><span className="dot" style={{background:`${RC[cur.rot]}25`,border:`1.5px solid ${RC[cur.rot]}`}}/>nodo rotado</span>}
-            <span><span className="dot" style={{background:'#EAF3DE',border:'1px solid #3B6D11'}}/>balanceado</span>
-            <span><span className="dot" style={{background:'#FCEBEB',border:'1px solid #A32D2D'}}/>desbalanceado</span>
+            <span><span className="dot" style={{ background:'#FEF3C7', border:'1.5px solid #F59E0B' }}/>próxima rotación</span>
+            {cur && cur.rot && (
+              <span>
+                <span className="dot" style={{ background: ROT_PASTEL[cur.rot] && ROT_PASTEL[cur.rot].fill,
+                                               border: '1.5px solid '+RC[cur.rot] }}/>
+                nodo rotado ({cur.rot})
+              </span>
+            )}
+            <span><span className="dot" style={{ background:'#D1FAE5', border:'1px solid #34D399' }}/>balanceado</span>
+            <span><span className="dot" style={{ background:'#FFE4E6', border:'1px solid #F87171' }}/>desbalanceado</span>
           </div>
           <div className="step-controls">
-            <button onClick={()=>{setSi(0);setPlay(false)}} disabled={si===0} style={{background:'#94A3B8'}}>⏮</button>
-            <button onClick={()=>setSi(i=>Math.max(0,i-1))} disabled={si===0} style={{background:'#94A3B8'}}>◀ Anterior</button>
-            <button onClick={()=>setSi(i=>Math.min(steps.length-1,i+1))} disabled={si===steps.length-1} style={{background:'#60A5FA'}}>Siguiente ▶</button>
-            <button onClick={()=>setPlay(p=>!p)} style={{fontWeight:500,background:play?'#FBBF24':'#818CF8'}}>{play?'⏸ Pausar':'▶ Auto-reproducir'}</button>
-            <div style={{flex:1}}/>
+            <button onClick={()=>{setSi(0);setPlay(false);}} disabled={si===0} style={{ background:'#94A3B8' }}>⏮</button>
+            <button onClick={()=>setSi(i=>Math.max(0,i-1))} disabled={si===0} style={{ background:'#94A3B8' }}>◀</button>
+            <button onClick={()=>setSi(i=>Math.min(steps.length-1,i+1))} disabled={si===steps.length-1}
+                    style={{ background:'#60A5FA' }}>▶</button>
+            <button onClick={()=>{setSi(steps.length-1);setPlay(false);}} disabled={si===steps.length-1}
+                    style={{ background:'#94A3B8' }}>⏭</button>
+            <button onClick={()=>setPlay(p=>!p)} style={{ background: play?'#FBBF24':'#818CF8', fontWeight:500 }}>
+              {play ? '⏸ Pausar' : '▶ Auto'}
+            </button>
+            <div style={{ flex:1 }}/>
             <button className="btn-green" onClick={()=>exitSteps(true)}>✓ Aplicar</button>
-            <button onClick={()=>exitSteps(false)} style={{background:'#94A3B8'}}>✕ Salir</button>
+            <button onClick={()=>exitSteps(false)} style={{ background:'#94A3B8' }}>✕ Salir</button>
           </div>
         </div>
       )}
 
-      {/* Árbol(es) */}
+      {/* Vista del árbol — dos paneles en modo paso a paso, uno en modo normal */}
       {steps ? (
-        <div style={{display:'flex',gap:12,marginBottom:10,alignItems:'flex-start'}}>
+        <div style={{ display:'flex', gap:12, marginBottom:10, alignItems:'flex-start' }}>
           <TreeSVG
-            treeRoot={si>0?steps[si-1].tree:null}
-            stepCtx={si>0?steps[si-1]:null}
-            label={si>0?`Paso ${si}`:'—'}
+            treeRoot={si > 0 ? steps[si-1].tree : null}
+            stepCtx={si > 0 ? steps[si-1] : null}
+            label={si > 0 ? 'Paso '+(si)+' (anterior)' : '— (sin anterior)'}
             labelColor="#94A3B8"
           />
-          <div style={{display:'flex',alignItems:'center',alignSelf:'center',fontSize:22,color:'#A78BFA',flexShrink:0,paddingBottom:4}}>→</div>
+          <div style={{ display:'flex', alignItems:'center', alignSelf:'center',
+                        fontSize:22, color:'#A78BFA', flexShrink:0 }}>→</div>
           <TreeSVG
-            treeRoot={cur?cur.tree:null}
+            treeRoot={cur ? cur.tree : null}
             stepCtx={cur}
-            label={`Paso ${si+1} (actual)`}
+            label={'Paso '+(si+1)+' (actual)'}
             labelColor="#818CF8"
           />
         </div>
       ) : (
         <div className="tree-box">
           {!dispRoot
-            ?<div className="empty-tree">Árbol vacío — inserta valores para comenzar</div>
-            :(
-              <svg width="100%" viewBox={`0 0 660 ${svgH}`} style={{display:'block'}}>
-                {edges.map((e,i)=>(
-                  <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--border2)" strokeWidth="1.5"/>
+            ? <div className="empty-tree">Árbol vacío — inserta valores para comenzar</div>
+            : (
+              <svg width={svgW} height={svgH} viewBox={'0 0 '+svgW+' '+svgH}
+                   style={{ display:'block', minWidth:'100%' }}>
+                {edges.map((e,i) => (
+                  <line key={i} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                        stroke="var(--border2)" strokeWidth="1.5" strokeLinecap="round"/>
                 ))}
-                {nodes.map((n,i)=>{
-                  const c=nodeCols(n);
-                  return(
+                {nodes.map((n,i) => {
+                  const c = nodeColors(n.bf, null, n.v);
+                  return (
                     <g key={i}>
-                      <circle cx={n.x} cy={n.y} r={R} fill={c.fill} stroke={c.stroke} strokeWidth={c.sw||1.5}/>
-                      <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central" fontSize="13" fontWeight="500" fill={c.text}>{n.v}</text>
-                      <circle cx={n.x+17} cy={n.y-17} r={10} fill={c.bfFill} stroke={c.bfStroke} strokeWidth="1"/>
-                      <text x={n.x+17} y={n.y-17} textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="700" fill={c.bfText}>{n.bf}</text>
+                      <circle cx={n.x} cy={n.y} r={NODE_R} fill={c.fill} stroke={c.stroke} strokeWidth={c.sw}/>
+                      <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central"
+                            fontSize="13" fontWeight="600" fill={c.text}>{n.v}</text>
+                      <circle cx={n.x+18} cy={n.y-18} r={11} fill={c.bfFill} stroke={c.bfStroke} strokeWidth="1"/>
+                      <text x={n.x+18} y={n.y-18} textAnchor="middle" dominantBaseline="central"
+                            fontSize="10" fontWeight="700" fill={c.bfText}>{n.bf}</text>
                     </g>
                   );
                 })}
@@ -400,28 +587,42 @@ function App(){
 
       {/* Leyenda */}
       <div className="legend">
-        <code>FB = H(izq) − H(der) ∈ {'{−1, 0, 1}'}</code>
-        <span><span className="dot" style={{background:'#C0DD97',border:'1px solid #639922'}}/>balanceado</span>
-        <span><span className="dot" style={{background:'#F7C1C1',border:'1px solid #E24B4A'}}/>desbalanceado</span>
-        <div style={{marginLeft:'auto',display:'flex',gap:10}}>
-          {Object.entries(RC).map(([k,c])=>(
-            <span key={k} style={{color:c,fontWeight:700,fontSize:12}}>{k}</span>
+        <code>FB = H(izq) − H(der)</code>
+        <span><span className="dot" style={{ background:'#A7F3D0', border:'1px solid #34D399' }}/>balanceado</span>
+        <span><span className="dot" style={{ background:'#FECACA', border:'1px solid #F87171' }}/>desbalanceado</span>
+        <div style={{ marginLeft:'auto', display:'flex', gap:10 }}>
+          {Object.keys(RC).map(k => (
+            <span key={k} style={{ color:RC[k], fontWeight:700, fontSize:12 }}>{k}</span>
           ))}
         </div>
       </div>
 
-      {/* Log */}
-      {log.length>0&&(
+      {/* Log de operaciones */}
+      {log.length > 0 && (
         <div className="log-box">
-          {log.map((e,i)=>(
-            <div key={i} className="log-entry"
-              style={{color:e.kind==='ins'?'#27500A':e.kind==='del'?'#791F1F':RC[e.kind]||'var(--text2)'}}>
-              {RC[e.kind]&&(
-                <span className="badge" style={{background:`${RC[e.kind]}22`,color:RC[e.kind]}}>{e.kind}</span>
-              )}
-              {e.msg}
-            </div>
-          ))}
+          {log.map((e, i) => {
+            const isRot = !!RC[e.kind];
+            const color = e.kind==='err' ? '#9F1239'
+                        : isRot          ? RC[e.kind]
+                        : e.kind==='ins' ? '#065F46'
+                        : e.kind==='del' ? '#9F1239'
+                        : 'var(--text2)';
+            return (
+              <div key={i} className="log-entry" style={{ color }}>
+                {isRot && (
+                  <span className="badge"
+                        style={{ background: ROT_PASTEL[e.kind] && ROT_PASTEL[e.kind].fill,
+                                 color: RC[e.kind] }}>
+                    {e.kind}
+                  </span>
+                )}
+                {e.kind === 'err' && (
+                  <span className="badge" style={{ background:'#FFE4E6', color:'#9F1239' }}>!</span>
+                )}
+                {e.msg}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
